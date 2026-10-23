@@ -7,6 +7,7 @@
     "Description": "Reads the five dragon positions during UCoB Nael and prints, in a chat message only you can see, where each divebomb should be baited. Use /naeldive to recompute or /naeldive test N S SW W NW to try a pattern.",
     "Punchline": "Local chat callout for UCoB Nael divebomb bait spots.",
     "ApplicableVersion": "any",
+    "IconUrl": "https://raw.githubusercontent.com/Juandibp/NaelDiveCaller/main/images/icon.png",
     "RepoUrl": "https://github.com/Juandibp/NaelDiveCaller",
     "Tags": [
       "ucob",

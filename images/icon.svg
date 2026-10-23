@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <radialGradient id="sky" cx="50%" cy="40%" r="75%">
+      <stop offset="0" stop-color="#2b1440"/>
+      <stop offset="1" stop-color="#0b0612"/>
+    </radialGradient>
+    <radialGradient id="moonGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0.55" stop-color="#ff3b2f" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#ff3b2f" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="dive" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ff4a3d" stop-opacity="0"/>
+      <stop offset="0.35" stop-color="#ff4a3d" stop-opacity="0.75"/>
+      <stop offset="1" stop-color="#ff2a1f" stop-opacity="0.95"/>
+    </linearGradient>
+    <clipPath id="arenaClip">
+      <circle cx="256" cy="286" r="168"/>
+    </clipPath>
+    <mask id="crescent">
+      <circle cx="118" cy="110" r="56" fill="#fff"/>
+      <circle cx="146" cy="90" r="50" fill="#000"/>
+    </mask>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="6" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <rect width="512" height="512" fill="url(#sky)"/>
+
+  <!-- red moon -->
+  <circle cx="118" cy="110" r="96" fill="url(#moonGlow)" mask="url(#crescent)"/>
+  <circle cx="118" cy="110" r="56" fill="#ff3b2f" mask="url(#crescent)" filter="url(#glow)"/>
+
+  <!-- arena -->
+  <circle cx="256" cy="286" r="168" fill="#1c1626"/>
+  <g clip-path="url(#arenaClip)" stroke="#ffffff" stroke-opacity="0.08" stroke-width="3">
+    <path d="M88 202h336M88 244h336M88 286h336M88 328h336M88 370h336M172 118v336M214 118v336M256 118v336M298 118v336M340 118v336"/>
+  </g>
+  <circle cx="256" cy="286" r="168" fill="none" stroke="#d8d0e6" stroke-width="8"/>
+
+  <!-- dives: 2 converge on the east bait, 1 on the south-west bait -->
+  <g filter="url(#glow)">
+    <rect x="-22" y="-150" width="44" height="150" rx="6" fill="url(#dive)" transform="translate(402 262) rotate(28)"/>
+    <rect x="-22" y="-150" width="44" height="150" rx="6" fill="url(#dive)" transform="translate(402 262) rotate(152)"/>
+    <rect x="-22" y="-150" width="44" height="150" rx="6" fill="url(#dive)" transform="translate(150 392) rotate(-58)"/>
+  </g>
+
+  <!-- bait markers -->
+  <g fill="none" stroke="#ffffff" stroke-width="9" filter="url(#glow)">
+    <circle cx="402" cy="262" r="20"/>
+    <circle cx="150" cy="392" r="20"/>
+  </g>
+  <circle cx="402" cy="262" r="7" fill="#ffffff"/>
+  <circle cx="150" cy="392" r="7" fill="#ffffff"/>
+</svg>
