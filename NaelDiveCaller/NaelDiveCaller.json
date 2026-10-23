@@ -1,0 +1,7 @@
+{
+  "Author": "Schiz",
+  "Name": "Nael Dive Caller",
+  "Punchline": "Local chat callout for UCoB Nael divebomb bait spots.",
+  "Description": "Reads the five dragon positions during UCoB Nael and prints, in a chat message only you can see, where each divebomb should be baited. Use /naeldive to recompute or /naeldive test N S SW W NW to try a pattern.",
+  "Tags": ["ucob", "ultimate", "raid"]
+}
