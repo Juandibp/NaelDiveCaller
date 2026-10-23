@@ -1,0 +1,55 @@
+name: Release
+
+# Push a tag like v0.1.1.0 to build the plugin, publish latest.zip as a release
+# and point repo.json at the new version.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Download Dalamud
+        run: |
+          Invoke-WebRequest -Uri https://goatcorp.github.io/dalamud-distrib/latest.zip -OutFile dalamud.zip
+          Expand-Archive -Force dalamud.zip "$env:AppData\XIVLauncher\addon\Hooks\dev"
+
+      - name: Build
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart('v')
+          dotnet build NaelDiveCaller -c Release -p:Version=$version
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" NaelDiveCaller/bin/Release/NaelDiveCaller/latest.zip --title "${{ github.ref_name }}" --generate-notes
+
+      - name: Update repo.json
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart('v')
+          $plugins = Get-Content repo.json -Raw | ConvertFrom-Json
+          foreach ($plugin in $plugins) {
+            $plugin.AssemblyVersion = $version
+            $plugin.LastUpdate = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+          }
+          ConvertTo-Json -InputObject @($plugins) -Depth 5 | Set-Content repo.json -Encoding utf8NoBOM
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "Update repo.json for $version"
+          git push origin main

@@ -1,0 +1,19 @@
+[
+  {
+    "Author": "Schiz",
+    "Name": "Nael Dive Caller",
+    "InternalName": "NaelDiveCaller",
+    "AssemblyVersion": "0.1.0.0",
+    "Description": "Reads the five dragon positions during UCoB Nael and prints, in a chat message only you can see, where each divebomb should be baited. Use /naeldive to recompute or /naeldive test N S SW W NW to try a pattern.",
+    "Punchline": "Local chat callout for UCoB Nael divebomb bait spots.",
+    "ApplicableVersion": "any",
+    "RepoUrl": "https://github.com/Juandibp/NaelDiveCaller",
+    "Tags": ["ucob", "ultimate", "raid"],
+    "DalamudApiLevel": 15,
+    "LastUpdate": 1792728314,
+    "AcceptsFeedback": false,
+    "DownloadLinkInstall": "https://github.com/Juandibp/NaelDiveCaller/releases/latest/download/latest.zip",
+    "DownloadLinkUpdate": "https://github.com/Juandibp/NaelDiveCaller/releases/latest/download/latest.zip",
+    "DownloadLinkTesting": "https://github.com/Juandibp/NaelDiveCaller/releases/latest/download/latest.zip"
+  }
+]
