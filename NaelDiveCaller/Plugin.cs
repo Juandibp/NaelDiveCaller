@@ -4,6 +4,7 @@ using System.Linq;
 using System.Numerics;
 using Dalamud.Game.ClientState.Objects.Types;
 using Dalamud.Game.Command;
+using Dalamud.Interface.Windowing;
 using Dalamud.IoC;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
@@ -28,6 +29,7 @@ public sealed class Plugin : IDalamudPlugin
         "Iceclaw", "Thunderwing", "Fang of Light", "Tail of Darkness", "Firehorn",
     };
 
+    [PluginService] internal static IDalamudPluginInterface PluginInterface { get; private set; } = null!;
     [PluginService] internal static ICommandManager CommandManager { get; private set; } = null!;
     [PluginService] internal static IChatGui ChatGui { get; private set; } = null!;
     [PluginService] internal static IClientState ClientState { get; private set; } = null!;
@@ -39,15 +41,28 @@ public sealed class Plugin : IDalamudPlugin
     private DateTime stableSince;
     private bool announced;
     private int lastCount;
-    private bool debug;
+
+    private readonly WindowSystem windowSystem = new("NaelDiveCaller");
+    private readonly ConfigWindow configWindow;
+
+    internal Configuration Configuration { get; }
+
+    internal bool InUcob => ClientState.TerritoryType == UcobTerritoryId;
 
     public Plugin()
     {
+        Configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
+        configWindow = new ConfigWindow(this);
+        windowSystem.AddWindow(configWindow);
+        PluginInterface.UiBuilder.Draw += windowSystem.Draw;
+        PluginInterface.UiBuilder.OpenConfigUi += configWindow.Toggle;
+        PluginInterface.UiBuilder.OpenMainUi += configWindow.Toggle;
+
         CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
         {
             HelpMessage = "Print the divebomb spots for the current dragons. "
                 + "'/naeldive test N S SW W NW' tries a pattern, '/naeldive scan' lists nearby NPCs, "
-                + "'/naeldive debug' toggles detection messages.",
+                + "'/naeldive debug' toggles detection messages, '/naeldive config' opens settings.",
         });
         Framework.Update += OnFrameworkUpdate;
         ClientState.TerritoryChanged += OnTerritoryChanged;
@@ -58,7 +73,15 @@ public sealed class Plugin : IDalamudPlugin
         ClientState.TerritoryChanged -= OnTerritoryChanged;
         Framework.Update -= OnFrameworkUpdate;
         CommandManager.RemoveHandler(CommandName);
+        PluginInterface.UiBuilder.OpenMainUi -= configWindow.Toggle;
+        PluginInterface.UiBuilder.OpenConfigUi -= configWindow.Toggle;
+        PluginInterface.UiBuilder.Draw -= windowSystem.Draw;
+        windowSystem.RemoveAllWindows();
     }
+
+    internal void SaveConfiguration() => PluginInterface.SavePluginConfig(Configuration);
+
+    internal IGameObject[] CurrentDragons() => FindDragons().ToArray<IGameObject>();
 
     private void OnTerritoryChanged(uint territory)
     {
@@ -70,14 +93,14 @@ public sealed class Plugin : IDalamudPlugin
 
     private void OnFrameworkUpdate(IFramework framework)
     {
-        if (ClientState.TerritoryType != UcobTerritoryId)
+        if (!InUcob)
         {
             Reset();
             return;
         }
 
         var dragons = FindDragons().ToArray();
-        if (debug && dragons.Length != lastCount)
+        if (Configuration.Debug && dragons.Length != lastCount)
         {
             ChatGui.Print($"Dragons seen: {dragons.Length} ({string.Join(", ", dragons.Select(Describe))})", ChatTag);
         }
@@ -123,7 +146,7 @@ public sealed class Plugin : IDalamudPlugin
         announced = false;
     }
 
-    private static string Describe(IGameObject o)
+    internal static string Describe(IGameObject o)
     {
         var distance = new Vector2(o.Position.X, o.Position.Z).Length();
         return $"{o.Name} {DiveSolver.CompassName(DiveSolver.AngleOf(o.Position.X, o.Position.Z))} {distance:F1}y";
@@ -142,9 +165,16 @@ public sealed class Plugin : IDalamudPlugin
         var parts = args.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length > 0 && parts[0].Equals("debug", StringComparison.OrdinalIgnoreCase))
         {
-            debug = !debug;
+            Configuration.Debug = !Configuration.Debug;
+            SaveConfiguration();
             lastCount = -1;
-            ChatGui.Print($"Detection messages {(debug ? "on" : "off")}.", ChatTag);
+            ChatGui.Print($"Detection messages {(Configuration.Debug ? "on" : "off")}.", ChatTag);
+            return;
+        }
+
+        if (parts.Length > 0 && parts[0].Equals("config", StringComparison.OrdinalIgnoreCase))
+        {
+            configWindow.Toggle();
             return;
         }
 
@@ -176,7 +206,7 @@ public sealed class Plugin : IDalamudPlugin
                 ChatGui.PrintError("Give exactly 5 dragon directions, e.g. /naeldive test N S SW W NW", ChatTag);
                 return;
             }
-            Print(DiveSolver.Solve(angles, ReadWaymarks()));
+            Print(DiveSolver.Solve(angles, Waymarks()));
             return;
         }
 
@@ -189,13 +219,13 @@ public sealed class Plugin : IDalamudPlugin
         Announce(found.Select(d => d.Position).ToArray());
     }
 
-    private void Announce(Vector3[] positions)
+    internal void Announce(Vector3[] positions)
     {
         foreach (var dragon in FindDragons())
         {
             Log.Debug($"{dragon.Name} base {dragon.BaseId} name {dragon.NameId} at {dragon.Position}");
         }
-        Print(DiveSolver.Solve(positions.Select(p => DiveSolver.AngleOf(p.X, p.Z)).ToArray(), ReadWaymarks()));
+        Print(DiveSolver.Solve(positions.Select(p => DiveSolver.AngleOf(p.X, p.Z)).ToArray(), Waymarks()));
     }
 
     private static void Print(DiveSolution solution)
@@ -207,8 +237,19 @@ public sealed class Plugin : IDalamudPlugin
         }
     }
 
-    /// <summary>Angles of the placed A/B/C waymarks; missing ones fall back to the defaults.</summary>
-    private static unsafe Dictionary<string, float> ReadWaymarks()
+    /// <summary>Angles of the placed A/B/C waymarks, with the configured fallbacks for missing ones.</summary>
+    internal Dictionary<string, float> Waymarks()
+    {
+        var result = Configuration.FallbackWaymarks();
+        foreach (var (name, angle) in ReadPlacedWaymarks())
+        {
+            result[name] = angle;
+        }
+        return result;
+    }
+
+    /// <summary>Angles of the A/B/C waymarks currently placed in game.</summary>
+    internal static unsafe Dictionary<string, float> ReadPlacedWaymarks()
     {
         var result = new Dictionary<string, float>();
         var marking = MarkingController.Instance();

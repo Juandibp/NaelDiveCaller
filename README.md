@@ -29,6 +29,7 @@ Dragons are counted clockwise from north and split 2-1-2: the first divebomb tak
 - `/naeldive test N S SW W NW` try a dragon layout anywhere (compass names or degrees).
 - `/naeldive scan` list every NPC around you with its direction, distance and IDs.
 - `/naeldive debug` toggle a chat message each time the number of dragons it can see changes.
+- `/naeldive config` open the settings window (also the cog in `/xlplugins`): debug messages, fallback waymark angles, the dragons it can see right now and a pattern tester.
 
 ## Building
 
