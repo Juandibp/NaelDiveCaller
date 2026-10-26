@@ -21,6 +21,9 @@ public sealed class Plugin : IDalamudPlugin
     // The arena is centered on (0,0); dragons spawn on its edge, so ignore anything near the middle.
     private const float MinDragonDistance = 10f;
 
+    // A waymark in the middle of the arena has no useful direction.
+    private const float MinMarkerDistance = 5f;
+
     // Wait for the dragons to stop moving before calling, in case they spawn and then get placed.
     private static readonly TimeSpan SettleTime = TimeSpan.FromMilliseconds(500);
 
@@ -231,7 +234,7 @@ public sealed class Plugin : IDalamudPlugin
     private static void Print(DiveSolution solution)
     {
         // Echo-style local messages: nobody else sees these.
-        foreach (var line in DiveSolver.Describe(solution))
+        foreach (var line in DiveSolver.Describe(solution, ReadPlacedWaymarks()))
         {
             ChatGui.Print(line, ChatTag);
         }
@@ -248,7 +251,7 @@ public sealed class Plugin : IDalamudPlugin
         return result;
     }
 
-    /// <summary>Angles of the A/B/C waymarks currently placed in game.</summary>
+    /// <summary>Angles of the waymarks currently placed in game, skipping any placed in the middle.</summary>
     internal static unsafe Dictionary<string, float> ReadPlacedWaymarks()
     {
         var result = new Dictionary<string, float>();
@@ -258,11 +261,12 @@ public sealed class Plugin : IDalamudPlugin
             return result;
         }
 
-        string[] names = ["A", "B", "C"];
+        // Field marker slots are A, B, C, D, then 1-4.
+        string[] names = ["A", "B", "C", "D", "1", "2", "3", "4"];
         for (var i = 0; i < names.Length; i++)
         {
             var marker = marking->FieldMarkers[i];
-            if (marker.Active)
+            if (marker.Active && new Vector2(marker.Position.X, marker.Position.Z).Length() >= MinMarkerDistance)
             {
                 result[names[i]] = DiveSolver.AngleOf(marker.Position.X, marker.Position.Z);
             }

@@ -42,6 +42,20 @@ public static class DiveSolver
     private static readonly string[] Compass =
         ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
 
+    private static readonly string[] Plain =
+    [
+        "North", "North, slightly east", "North-east", "East, slightly north",
+        "East", "East, slightly south", "South-east", "South, slightly east",
+        "South", "South, slightly west", "South-west", "West, slightly south",
+        "West", "West, slightly north", "North-west", "North, slightly west",
+    ];
+
+    // A spot this close to a waymark is called as standing on it.
+    private const float OnMarkerDegrees = 12f;
+
+    // Only describe a spot as between two waymarks when they're reasonably close together.
+    private const float MaxBetweenGap = 120f;
+
     /// <summary>Angle of a world position around the arena center (0,0); north is -Z.</summary>
     public static float AngleOf(float x, float z) => Normalize(MathF.Atan2(x, -z) * 180f / MathF.PI);
 
@@ -52,6 +66,43 @@ public static class DiveSolver
     }
 
     public static string CompassName(float deg) => Compass[(int)MathF.Round(Normalize(deg) / 22.5f) % 16];
+
+    public static string PlainDirection(float deg) => Plain[(int)MathF.Round(Normalize(deg) / 22.5f) % 16];
+
+    /// <summary>
+    /// Describes a spot on the edge in words, using the placed waymarks when there are any:
+    /// "at 3", "between 3 and A (closer to 3)", or just "South, slightly east".
+    /// </summary>
+    public static string SpotName(float deg, IReadOnlyDictionary<string, float> markers)
+    {
+        var plain = PlainDirection(deg);
+        if (markers.Count == 0)
+        {
+            return plain;
+        }
+
+        var nearest = markers.MinBy(m => AngularDistance(m.Value, deg));
+        if (AngularDistance(nearest.Value, deg) <= OnMarkerDegrees)
+        {
+            return $"{plain} - at {nearest.Key}";
+        }
+
+        // Closest waymark on each side, going counter-clockwise and clockwise from the spot.
+        var before = markers.MinBy(m => Normalize(deg - m.Value));
+        var after = markers.MinBy(m => Normalize(m.Value - deg));
+        var gap = Normalize(after.Value - before.Value);
+        if (before.Key == after.Key || gap > MaxBetweenGap)
+        {
+            return $"{plain} - near {nearest.Key}";
+        }
+
+        var toBefore = Normalize(deg - before.Value);
+        var toAfter = Normalize(after.Value - deg);
+        var closer = MathF.Abs(toBefore - toAfter) < gap * 0.2f
+            ? ""
+            : $" (closer to {(toBefore < toAfter ? before.Key : after.Key)})";
+        return $"{plain} - between {before.Key} and {after.Key}{closer}";
+    }
 
     /// <summary>Accepts a compass name (N, SW, NNE...) or a number of degrees.</summary>
     public static bool TryParseDirection(string text, out float deg)
@@ -99,7 +150,7 @@ public static class DiveSolver
         return new DiveSolution(calls, cursed);
     }
 
-    public static IEnumerable<string> Describe(DiveSolution solution)
+    public static IEnumerable<string> Describe(DiveSolution solution, IReadOnlyDictionary<string, float> markers)
     {
         var dragons = string.Join(" | ", solution.Calls.Select(c => string.Join(", ", c.Dragons.Select(CompassName))));
         yield return $"Dragons (clockwise from N): {dragons}";
@@ -107,8 +158,8 @@ public static class DiveSolver
         foreach (var call in solution.Calls)
         {
             var spot = call.Waymark is { } mark
-                ? $"{mark} ({CompassName(call.BaitAngle)})"
-                : $"{CompassName(call.BaitAngle)} (moved off the usual waymark)";
+                ? $"{mark} ({PlainDirection(call.BaitAngle)})"
+                : SpotName(call.BaitAngle, markers);
             yield return $"Dive {call.Dive}: {spot}";
         }
     }

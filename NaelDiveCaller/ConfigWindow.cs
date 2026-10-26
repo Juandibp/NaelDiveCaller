@@ -149,6 +149,6 @@ public sealed class ConfigWindow : Window
         {
             return [$"Need 5 directions, got {angles.Count}."];
         }
-        return DiveSolver.Describe(DiveSolver.Solve(angles, plugin.Waymarks())).ToArray();
+        return DiveSolver.Describe(DiveSolver.Solve(angles, plugin.Waymarks()), Plugin.ReadPlacedWaymarks()).ToArray();
     }
 }
