@@ -35,23 +35,37 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] internal static IFramework Framework { get; private set; } = null!;
     [PluginService] internal static IPluginLog Log { get; private set; } = null!;
 
-    private Vector3[] lastPositions = [];
+    private string lastLayout = "";
     private DateTime stableSince;
     private bool announced;
+    private int lastCount;
+    private bool debug;
 
     public Plugin()
     {
         CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
         {
-            HelpMessage = "Print the divebomb spots for the current dragons. '/naeldive test N S SW W NW' tries a pattern.",
+            HelpMessage = "Print the divebomb spots for the current dragons. "
+                + "'/naeldive test N S SW W NW' tries a pattern, '/naeldive scan' lists nearby NPCs, "
+                + "'/naeldive debug' toggles detection messages.",
         });
         Framework.Update += OnFrameworkUpdate;
+        ClientState.TerritoryChanged += OnTerritoryChanged;
     }
 
     public void Dispose()
     {
+        ClientState.TerritoryChanged -= OnTerritoryChanged;
         Framework.Update -= OnFrameworkUpdate;
         CommandManager.RemoveHandler(CommandName);
+    }
+
+    private void OnTerritoryChanged(uint territory)
+    {
+        if (territory == UcobTerritoryId)
+        {
+            ChatGui.Print("Watching for Nael's dragons.", ChatTag);
+        }
     }
 
     private void OnFrameworkUpdate(IFramework framework)
@@ -62,11 +76,17 @@ public sealed class Plugin : IDalamudPlugin
             return;
         }
 
-        var positions = FindDragons().Select(d => d.Position).ToArray();
-        if (positions.Length != 5)
+        var dragons = FindDragons().ToArray();
+        if (debug && dragons.Length != lastCount)
+        {
+            ChatGui.Print($"Dragons seen: {dragons.Length} ({string.Join(", ", dragons.Select(Describe))})", ChatTag);
+        }
+        lastCount = dragons.Length;
+
+        if (dragons.Length != 5)
         {
             // Re-arm once the dragons are gone so a later pull gets its own callout.
-            if (positions.Length == 0)
+            if (dragons.Length == 0)
             {
                 Reset();
             }
@@ -78,11 +98,13 @@ public sealed class Plugin : IDalamudPlugin
             return;
         }
 
-        var moved = lastPositions.Length != positions.Length
-            || positions.Zip(lastPositions).Any(p => Vector3.Distance(p.First, p.Second) > 0.1f);
-        lastPositions = positions;
-        if (moved)
+        // Compare the snapped layout instead of raw positions so small drift doesn't hold the callout back.
+        var layout = string.Join(",", dragons
+            .Select(d => DiveSolver.CompassName(DiveSolver.AngleOf(d.Position.X, d.Position.Z)))
+            .Order());
+        if (layout != lastLayout)
         {
+            lastLayout = layout;
             stableSince = DateTime.UtcNow;
             return;
         }
@@ -90,14 +112,21 @@ public sealed class Plugin : IDalamudPlugin
         if (DateTime.UtcNow - stableSince >= SettleTime)
         {
             announced = true;
-            Announce(positions);
+            Announce(dragons.Select(d => d.Position).ToArray());
         }
     }
 
     private void Reset()
     {
-        lastPositions = [];
+        lastLayout = "";
+        lastCount = 0;
         announced = false;
+    }
+
+    private static string Describe(IGameObject o)
+    {
+        var distance = new Vector2(o.Position.X, o.Position.Z).Length();
+        return $"{o.Name} {DiveSolver.CompassName(DiveSolver.AngleOf(o.Position.X, o.Position.Z))} {distance:F1}y";
     }
 
     private static IEnumerable<IBattleNpc> FindDragons() =>
@@ -111,6 +140,25 @@ public sealed class Plugin : IDalamudPlugin
     private void OnCommand(string command, string args)
     {
         var parts = args.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length > 0 && parts[0].Equals("debug", StringComparison.OrdinalIgnoreCase))
+        {
+            debug = !debug;
+            lastCount = -1;
+            ChatGui.Print($"Detection messages {(debug ? "on" : "off")}.", ChatTag);
+            return;
+        }
+
+        if (parts.Length > 0 && parts[0].Equals("scan", StringComparison.OrdinalIgnoreCase))
+        {
+            var npcs = ObjectTable.OfType<IBattleNpc>().ToArray();
+            ChatGui.Print($"Zone {ClientState.TerritoryType}, {npcs.Length} NPCs:", ChatTag);
+            foreach (var npc in npcs)
+            {
+                ChatGui.Print($"{Describe(npc)} base {npc.BaseId} name {npc.NameId}", ChatTag);
+            }
+            return;
+        }
+
         if (parts.Length > 0 && parts[0].Equals("test", StringComparison.OrdinalIgnoreCase))
         {
             var angles = new List<float>();
@@ -132,13 +180,13 @@ public sealed class Plugin : IDalamudPlugin
             return;
         }
 
-        var positions = FindDragons().Select(d => d.Position).ToArray();
-        if (positions.Length != 5)
+        var found = FindDragons().ToArray();
+        if (found.Length != 5)
         {
-            ChatGui.PrintError($"Found {positions.Length}/5 dragons.", ChatTag);
+            ChatGui.PrintError($"Found {found.Length}/5 dragons: {string.Join(", ", found.Select(Describe))}", ChatTag);
             return;
         }
-        Announce(positions);
+        Announce(found.Select(d => d.Position).ToArray());
     }
 
     private void Announce(Vector3[] positions)
