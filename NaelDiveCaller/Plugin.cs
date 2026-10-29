@@ -126,8 +126,10 @@ public sealed class Plugin : IDalamudPlugin
         }
 
         // Compare the snapped layout instead of raw positions so small drift doesn't hold the callout back.
+        // Distance is part of it so a dragon still flying in to the edge holds the callout.
         var layout = string.Join(",", dragons
-            .Select(d => DiveSolver.CompassName(DiveSolver.AngleOf(d.Position.X, d.Position.Z)))
+            .Select(d => $"{DiveSolver.CompassName(DiveSolver.AngleOf(d.Position.X, d.Position.Z))}"
+                + $"@{MathF.Round(new Vector2(d.Position.X, d.Position.Z).Length())}")
             .Order());
         if (layout != lastLayout)
         {
@@ -229,7 +231,8 @@ public sealed class Plugin : IDalamudPlugin
         {
             Log.Debug($"{dragon.Name} base {dragon.BaseId} name {dragon.NameId} at {dragon.Position}");
         }
-        var distance = positions.Average(p => new Vector2(p.X, p.Z).Length());
+        // Median, so one dragon that isn't in place yet doesn't skew it.
+        var distance = positions.Select(p => new Vector2(p.X, p.Z).Length()).Order().ElementAt(positions.Length / 2);
         if (Configuration.Debug)
         {
             ChatGui.Print($"Dragons are {distance:F1}y from the center.", ChatTag);

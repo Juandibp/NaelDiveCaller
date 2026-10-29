@@ -24,9 +24,10 @@ public static class DiveSolver
 
     // Dragons sit on the arena edge; bait players stand just inside it.
     // Dragon distance from the center as a fraction of the arena radius, used when it isn't measured.
+    // Measured in game: dragons sit about 23.6y out on a 22y arena.
     // Dives run from the dragon through the bait spot and on across the arena, so the further out the
     // dragons are, the more a dive onto a nearby bait spot points at the middle.
-    public const float DefaultDragonRadius = 1.4f;
+    public const float DefaultDragonRadius = 1.07f;
     private const float BaitRadius = 0.9f;
 
     // A dragon this many degrees counter-clockwise of north still counts as the north dragon.
