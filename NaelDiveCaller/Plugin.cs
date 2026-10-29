@@ -20,7 +20,7 @@ public sealed class Plugin : IDalamudPlugin
 
     // The arena is centered on (0,0); dragons spawn on its edge, so ignore anything near the middle.
     private const float MinDragonDistance = 10f;
-    private const float ArenaRadius = 22f;
+    internal const float ArenaRadius = 22f;
 
     // A waymark in the middle of the arena has no useful direction.
     private const float MinMarkerDistance = 5f;
@@ -84,6 +84,9 @@ public sealed class Plugin : IDalamudPlugin
     }
 
     internal void SaveConfiguration() => PluginInterface.SavePluginConfig(Configuration);
+
+    /// <summary>Configured dive half-width as a fraction of the arena radius.</summary>
+    internal float HalfWidth => Configuration.DiveWidth / 2f / ArenaRadius;
 
     internal IGameObject[] CurrentDragons() => FindDragons().ToArray<IGameObject>();
 
@@ -239,7 +242,7 @@ public sealed class Plugin : IDalamudPlugin
         }
 
         var angles = positions.Select(p => DiveSolver.AngleOf(p.X, p.Z)).ToArray();
-        Print(DiveSolver.Solve(angles, Waymarks(), distance / ArenaRadius));
+        Print(DiveSolver.Solve(angles, Waymarks(), distance / ArenaRadius, HalfWidth));
     }
 
     private static void Print(DiveSolution solution)

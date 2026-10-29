@@ -34,6 +34,14 @@ public sealed class ConfigWindow : Window
             plugin.SaveConfiguration();
         }
 
+        var width = config.DiveWidth;
+        if (ImGui.SliderFloat("Dive width", ref width, 6f, 30f, "%.0fy"))
+        {
+            config.DiveWidth = width;
+            plugin.SaveConfiguration();
+        }
+        ImGui.TextDisabled("Wider dives flag more patterns as cursed (a dive running over a later bait spot).");
+
         ImGui.Separator();
         DrawWaymarks(config);
 
@@ -149,6 +157,7 @@ public sealed class ConfigWindow : Window
         {
             return [$"Need 5 directions, got {angles.Count}."];
         }
-        return DiveSolver.Describe(DiveSolver.Solve(angles, plugin.Waymarks()), Plugin.ReadPlacedWaymarks()).ToArray();
+        var solution = DiveSolver.Solve(angles, plugin.Waymarks(), DiveSolver.DefaultDragonRadius, plugin.HalfWidth);
+        return DiveSolver.Describe(solution, Plugin.ReadPlacedWaymarks()).ToArray();
     }
 }
