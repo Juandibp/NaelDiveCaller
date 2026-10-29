@@ -6,12 +6,16 @@ var raidplanMarkers = new Dictionary<string, float>
 {
     ["A"] = 55f, ["B"] = 154f, ["C"] = 235f, ["1"] = 0f, ["2"] = 246f, ["3"] = 116f,
 };
+// DRAGON_RADIUS overrides the dragon distance (fraction of the arena radius).
+var dragonRadius = float.TryParse(Environment.GetEnvironmentVariable("DRAGON_RADIUS"), System.Globalization.CultureInfo.InvariantCulture, out var r)
+    ? r
+    : DiveSolver.DefaultDragonRadius;
 string[] patterns = args.Length > 0 ? args : ["N,NNE,S,W,NW", "N,S,SW,W,NW"];
 foreach (var pattern in patterns)
 {
     var angles = pattern.Split(',').Select(p => DiveSolver.TryParseDirection(p, out var a) ? a : throw new ArgumentException(p)).ToArray();
     Console.WriteLine($"== {pattern}");
-    var solution = DiveSolver.Solve(angles, DiveSolver.DefaultWaymarks);
+    var solution = DiveSolver.Solve(angles, DiveSolver.DefaultWaymarks, dragonRadius);
     foreach (var markers in new[] { new Dictionary<string, float>(), raidplanMarkers })
     {
         Console.WriteLine(markers.Count == 0 ? "-- no waymarks" : "-- raidplan waymarks");

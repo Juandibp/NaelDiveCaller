@@ -20,6 +20,7 @@ public sealed class Plugin : IDalamudPlugin
 
     // The arena is centered on (0,0); dragons spawn on its edge, so ignore anything near the middle.
     private const float MinDragonDistance = 10f;
+    private const float ArenaRadius = 22f;
 
     // A waymark in the middle of the arena has no useful direction.
     private const float MinMarkerDistance = 5f;
@@ -228,7 +229,14 @@ public sealed class Plugin : IDalamudPlugin
         {
             Log.Debug($"{dragon.Name} base {dragon.BaseId} name {dragon.NameId} at {dragon.Position}");
         }
-        Print(DiveSolver.Solve(positions.Select(p => DiveSolver.AngleOf(p.X, p.Z)).ToArray(), Waymarks()));
+        var distance = positions.Average(p => new Vector2(p.X, p.Z).Length());
+        if (Configuration.Debug)
+        {
+            ChatGui.Print($"Dragons are {distance:F1}y from the center.", ChatTag);
+        }
+
+        var angles = positions.Select(p => DiveSolver.AngleOf(p.X, p.Z)).ToArray();
+        Print(DiveSolver.Solve(angles, Waymarks(), distance / ArenaRadius));
     }
 
     private static void Print(DiveSolution solution)

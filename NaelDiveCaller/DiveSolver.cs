@@ -23,7 +23,10 @@ public static class DiveSolver
     public const float MinClearance = 0.6f;
 
     // Dragons sit on the arena edge; bait players stand just inside it.
-    private const float DragonRadius = 1.0f;
+    // Dragon distance from the center as a fraction of the arena radius, used when it isn't measured.
+    // Dives run from the dragon through the bait spot and on across the arena, so the further out the
+    // dragons are, the more a dive onto a nearby bait spot points at the middle.
+    public const float DefaultDragonRadius = 1.4f;
     private const float BaitRadius = 0.9f;
 
     // A dragon this many degrees counter-clockwise of north still counts as the north dragon.
@@ -116,7 +119,10 @@ public static class DiveSolver
         return float.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out deg);
     }
 
-    public static DiveSolution Solve(IReadOnlyList<float> dragonAngles, IReadOnlyDictionary<string, float> waymarks)
+    public static DiveSolution Solve(
+        IReadOnlyList<float> dragonAngles,
+        IReadOnlyDictionary<string, float> waymarks,
+        float dragonRadius = DefaultDragonRadius)
     {
         if (dragonAngles.Count != 5)
         {
@@ -136,7 +142,7 @@ public static class DiveSolver
         {
             var mark = DiveWaymarks[i];
             var markAngle = waymarks.TryGetValue(mark, out var placed) ? placed : DefaultWaymarks[mark];
-            var clearance = Clearance(groups[i], markAngle);
+            var clearance = Clearance(groups[i], markAngle, dragonRadius);
             if (clearance >= MinClearance)
             {
                 calls[i] = new DiveCall(i + 1, groups[i], markAngle, mark, clearance);
@@ -144,8 +150,8 @@ public static class DiveSolver
             }
 
             cursed = true;
-            var bait = BestBait(groups[i], markAngle);
-            calls[i] = new DiveCall(i + 1, groups[i], bait, null, Clearance(groups[i], bait));
+            var bait = BestBait(groups[i], markAngle, dragonRadius);
+            calls[i] = new DiveCall(i + 1, groups[i], bait, null, Clearance(groups[i], bait, dragonRadius));
         }
         return new DiveSolution(calls, cursed);
     }
@@ -165,15 +171,15 @@ public static class DiveSolver
     }
 
     /// <summary>Smallest distance from the arena center to any of the group's dive lines.</summary>
-    public static float Clearance(float[] dragons, float bait) =>
-        dragons.Min(d => LineDistanceToCenter(Point(d, DragonRadius), Point(bait, BaitRadius)));
+    public static float Clearance(float[] dragons, float bait, float dragonRadius) =>
+        dragons.Min(d => LineDistanceToCenter(Point(d, dragonRadius), Point(bait, BaitRadius)));
 
-    private static float BestBait(float[] dragons, float preferred)
+    private static float BestBait(float[] dragons, float preferred, float dragonRadius)
     {
         // Search the edge in 5° steps; among near-equal spots take the one closest to the usual waymark.
         var candidates = Enumerable.Range(0, 72)
             .Select(i => i * 5f)
-            .Select(a => (Angle: a, Clearance: Clearance(dragons, a)))
+            .Select(a => (Angle: a, Clearance: Clearance(dragons, a, dragonRadius)))
             .ToArray();
         var top = candidates.Max(c => c.Clearance);
         return candidates
