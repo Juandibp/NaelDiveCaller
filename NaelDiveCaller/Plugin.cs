@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
+using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.ClientState.Objects.Types;
 using Dalamud.Game.Command;
 using Dalamud.Interface.Windowing;
@@ -18,16 +19,13 @@ public sealed class Plugin : IDalamudPlugin
     private const string CommandName = "/naeldive";
     private const string ChatTag = "NaelDive";
 
-    // The arena is centered on (0,0); dragons spawn on its edge, so ignore anything near the middle.
-    private const float MinDragonDistance = 10f;
+    // The arena is centered on (0,0). Placed dragons sit about 23.6y out; a hidden "Thunderwing" sits
+    // at N 15y for the whole fight, and dragons flying out pass closer in, so only count ones this far out.
+    private const float DragonDistance = 20f;
     internal const float ArenaRadius = 22f;
 
     // A waymark in the middle of the arena has no useful direction.
     private const float MinMarkerDistance = 5f;
-
-    // Dragons appear near the north side and pause before flying out to the edge (measured ~23.6y).
-    // Only call once all five are at least this far out.
-    private const float PlacedDistance = 20f;
 
     // Wait for the dragons to stop moving before calling.
     private static readonly TimeSpan SettleTime = TimeSpan.FromMilliseconds(500);
@@ -46,6 +44,7 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] internal static IClientState ClientState { get; private set; } = null!;
     [PluginService] internal static IObjectTable ObjectTable { get; private set; } = null!;
     [PluginService] internal static IFramework Framework { get; private set; } = null!;
+    [PluginService] internal static ICondition Condition { get; private set; } = null!;
     [PluginService] internal static IPluginLog Log { get; private set; } = null!;
 
     private string lastLayout = "";
@@ -108,9 +107,17 @@ public sealed class Plugin : IDalamudPlugin
 
     private void OnFrameworkUpdate(IFramework framework)
     {
-        if (!InUcob)
+        // One callout per pull: re-arm only once out of combat (wipe or reset), so later phases'
+        // dragons and dives don't trigger it again.
+        if (!InUcob || !Condition[ConditionFlag.InCombat])
         {
             Reset();
+            return;
+        }
+
+        var now = DateTime.UtcNow;
+        if (announcedLayout != "" && now - announcedAt > CorrectionWindow)
+        {
             return;
         }
 
@@ -122,22 +129,6 @@ public sealed class Plugin : IDalamudPlugin
         lastCount = dragons.Length;
 
         if (dragons.Length != 5)
-        {
-            // Re-arm once the dragons are gone so a later pull gets its own callout.
-            if (dragons.Length == 0)
-            {
-                Reset();
-            }
-            return;
-        }
-
-        var now = DateTime.UtcNow;
-        if (announcedLayout != "" && now - announcedAt > CorrectionWindow)
-        {
-            return;
-        }
-
-        if (dragons.Any(d => new Vector2(d.Position.X, d.Position.Z).Length() < PlacedDistance))
         {
             lastLayout = "";
             return;
@@ -185,9 +176,9 @@ public sealed class Plugin : IDalamudPlugin
         ObjectTable
             .OfType<IBattleNpc>()
             .Where(o => DragonNames.Contains(o.Name.TextValue))
-            .Where(o => new Vector2(o.Position.X, o.Position.Z).Length() >= MinDragonDistance)
+            .Where(o => new Vector2(o.Position.X, o.Position.Z).Length() >= DragonDistance)
             .GroupBy(o => o.Name.TextValue)
-            .Select(g => g.First());
+            .Select(g => g.MaxBy(o => new Vector2(o.Position.X, o.Position.Z).Length())!);
 
     private void OnCommand(string command, string args)
     {
