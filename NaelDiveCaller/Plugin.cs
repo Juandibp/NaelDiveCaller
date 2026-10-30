@@ -102,7 +102,7 @@ public sealed class Plugin : IDalamudPlugin
     {
         if (territory == UcobTerritoryId)
         {
-            ChatGui.Print("Watching for Nael's dragons.", ChatTag);
+            ChatGui.Print($"Watching for Nael's dragons (v{PluginInterface.Manifest.AssemblyVersion}).", ChatTag);
         }
     }
 
