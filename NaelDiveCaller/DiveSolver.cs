@@ -17,10 +17,10 @@ public sealed record DiveSolution(DiveCall[] Calls, string[] Problems)
 /// <summary>
 /// Angles are in degrees clockwise from north. Dragons are taken clockwise from north in a 2-1-2 split:
 /// the first divebomb gets dragons 1-2, the second dragon 3, the third dragons 4-5.
-/// A dive is a wide band from the dragon to a little past its bait spot. All three bait players are
-/// out on their spots before any dive lands, so the usual spots (A/B/C) are used unless a dive would
-/// cut through the middle or run over another bait player's spot (the "cursed" pattern). Cursed
-/// layouts follow cactbot's UCoB dragon mark rules; layouts those don't cover are searched instead.
+/// A dive is a wide band from the dragon to a little past its bait spot. The usual spots (A/B/C) are
+/// used unless a dive would cut through the middle or the first dive would run over the second spot
+/// (the "cursed" pattern). Cursed layouts follow cactbot's UCoB dragon mark rules; layouts those don't
+/// cover are searched instead.
 /// </summary>
 public static class DiveSolver
 {
@@ -200,7 +200,7 @@ public static class DiveSolver
                     }
                     for (var c = 0; c < n; c++)
                     {
-                        if (clearance[2][c] < MinClearance || Clips(0, a, 2, c) || Clips(1, b, 2, c))
+                        if (clearance[2][c] < MinClearance)
                         {
                             continue;
                         }
@@ -304,15 +304,10 @@ public static class DiveSolver
                 problems.Add($"dive {i + 1} on {DiveWaymarks[i]} cuts through the middle");
             }
         }
-        for (var i = 0; i < 3; i++)
+        // Only the first dive against the second spot: a dive onto B passing near C is fine in play.
+        if (Hits(groups[0], spots[0], spots[1], dragonRadius, halfWidth))
         {
-            for (var j = i + 1; j < 3; j++)
-            {
-                if (Hits(groups[i], spots[i], spots[j], dragonRadius, halfWidth))
-                {
-                    problems.Add($"dive {i + 1} on {DiveWaymarks[i]} hits the dive {j + 1} spot ({DiveWaymarks[j]})");
-                }
-            }
+            problems.Add($"dive 1 on {DiveWaymarks[0]} hits the dive 2 spot ({DiveWaymarks[1]})");
         }
         return [.. problems];
     }

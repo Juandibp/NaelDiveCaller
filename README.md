@@ -21,7 +21,7 @@ Dive 3: C (SW)
 
 ## How it picks spots
 
-Dragons are counted clockwise from north and split 2-1-2: the first divebomb takes dragons 1-2, the second dragon 3, the third dragons 4-5. A dive is treated as a wide band (18y by default, adjustable in settings) from the dragon to a little past its bait spot. Each dive is baited on its usual waymark (A, B, C, read from the waymarks placed in game) unless that would send a dive through the middle of the arena or over another bait player's spot (everyone is out on their spot before the dives land). In that case the callout says what was wrong with the usual spots and places the dives using [cactbot](https://github.com/OverlayPlugin/cactbot)'s UCoB dragon mark rules.
+Dragons are counted clockwise from north and split 2-1-2: the first divebomb takes dragons 1-2, the second dragon 3, the third dragons 4-5. A dive is treated as a wide band (18y by default, adjustable in settings) from the dragon to a little past its bait spot. Each dive is baited on its usual waymark (A, B, C, read from the waymarks placed in game) unless that would send a dive through the middle of the arena or the first dive would run over the second spot. In that case the callout says what was wrong with the usual spots and places the dives using [cactbot](https://github.com/OverlayPlugin/cactbot)'s UCoB dragon mark rules.
 
 ## Commands
 
