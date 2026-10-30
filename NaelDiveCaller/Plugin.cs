@@ -25,8 +25,15 @@ public sealed class Plugin : IDalamudPlugin
     // A waymark in the middle of the arena has no useful direction.
     private const float MinMarkerDistance = 5f;
 
-    // Wait for the dragons to stop moving before calling, in case they spawn and then get placed.
+    // Dragons appear near the north side and pause before flying out to the edge (measured ~23.6y).
+    // Only call once all five are at least this far out.
+    private const float PlacedDistance = 20f;
+
+    // Wait for the dragons to stop moving before calling.
     private static readonly TimeSpan SettleTime = TimeSpan.FromMilliseconds(500);
+
+    // A changed layout this soon after a callout gets a corrected call; later changes are the dives.
+    private static readonly TimeSpan CorrectionWindow = TimeSpan.FromSeconds(6);
 
     private static readonly HashSet<string> DragonNames = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -43,7 +50,8 @@ public sealed class Plugin : IDalamudPlugin
 
     private string lastLayout = "";
     private DateTime stableSince;
-    private bool announced;
+    private string announcedLayout = "";
+    private DateTime announcedAt;
     private int lastCount;
 
     private readonly WindowSystem windowSystem = new("NaelDiveCaller");
@@ -123,36 +131,48 @@ public sealed class Plugin : IDalamudPlugin
             return;
         }
 
-        if (announced)
+        var now = DateTime.UtcNow;
+        if (announcedLayout != "" && now - announcedAt > CorrectionWindow)
         {
+            return;
+        }
+
+        if (dragons.Any(d => new Vector2(d.Position.X, d.Position.Z).Length() < PlacedDistance))
+        {
+            lastLayout = "";
             return;
         }
 
         // Compare the snapped layout instead of raw positions so small drift doesn't hold the callout back.
-        // Distance is part of it so a dragon still flying in to the edge holds the callout.
         var layout = string.Join(",", dragons
-            .Select(d => $"{DiveSolver.CompassName(DiveSolver.AngleOf(d.Position.X, d.Position.Z))}"
-                + $"@{MathF.Round(new Vector2(d.Position.X, d.Position.Z).Length())}")
+            .Select(d => DiveSolver.CompassName(DiveSolver.AngleOf(d.Position.X, d.Position.Z)))
             .Order());
         if (layout != lastLayout)
         {
             lastLayout = layout;
-            stableSince = DateTime.UtcNow;
+            stableSince = now;
             return;
         }
 
-        if (DateTime.UtcNow - stableSince >= SettleTime)
+        if (layout == announcedLayout || now - stableSince < SettleTime)
         {
-            announced = true;
-            Announce(dragons.Select(d => d.Position).ToArray());
+            return;
         }
+
+        if (announcedLayout != "")
+        {
+            ChatGui.Print("Dragons moved after the first call, corrected call:", ChatTag);
+        }
+        announcedLayout = layout;
+        announcedAt = now;
+        Announce(dragons.Select(d => d.Position).ToArray());
     }
 
     private void Reset()
     {
         lastLayout = "";
         lastCount = 0;
-        announced = false;
+        announcedLayout = "";
     }
 
     internal static string Describe(IGameObject o)
