@@ -21,7 +21,7 @@ Dive 3: C (SW)
 
 ## How it picks spots
 
-Dragons are counted clockwise from north and split 2-1-2: the first divebomb takes dragons 1-2, the second dragon 3, the third dragons 4-5. A dive is treated as a wide band (18y by default, adjustable in settings) from the dragon to a little past its bait spot. Each dive is baited on its usual waymark (A, B, C, read from the waymarks placed in game) unless that would send a dive through the middle of the arena or over the spot where a later bait player is waiting. In that case the three spots are picked together, moving as few as possible, and the callout says what was wrong with the usual spots.
+Dragons are counted clockwise from north and split 2-1-2: the first divebomb takes dragons 1-2, the second dragon 3, the third dragons 4-5. A dive is treated as a wide band (18y by default, adjustable in settings) from the dragon to a little past its bait spot. Each dive is baited on its usual waymark (A, B, C, read from the waymarks placed in game) unless that would send a dive through the middle of the arena, or the first dive would run over the second spot (that bait player is already out dropping hypernovas). In that case the three spots are picked together, moving as few as possible, and the callout says what was wrong with the usual spots. The third bait player stays in until the earlier dives land, so when an earlier dive covers the third spot the callout only tells them to wait.
 
 ## Commands
 
