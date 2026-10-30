@@ -8,11 +8,8 @@ namespace NaelDiveCaller;
 /// <summary>One divebomb: the dragons that dive on it and where its bait player should stand.</summary>
 public sealed record DiveCall(int Dive, float[] Dragons, float BaitAngle, string? Waymark, float Clearance);
 
-/// <summary>
-/// The three calls, why the usual A/B/C spots don't work (empty for a standard pattern), and whether
-/// an earlier dive covers the third spot so its bait player has to wait before walking out.
-/// </summary>
-public sealed record DiveSolution(DiveCall[] Calls, string[] Problems, bool ThirdWaits)
+/// <summary>The three calls, plus why the usual A/B/C spots don't work (empty for a standard pattern).</summary>
+public sealed record DiveSolution(DiveCall[] Calls, string[] Problems)
 {
     public bool Cursed => Problems.Length > 0;
 }
@@ -20,11 +17,10 @@ public sealed record DiveSolution(DiveCall[] Calls, string[] Problems, bool Thir
 /// <summary>
 /// Angles are in degrees clockwise from north. Dragons are taken clockwise from north in a 2-1-2 split:
 /// the first divebomb gets dragons 1-2, the second dragon 3, the third dragons 4-5.
-/// A dive is a wide band from the dragon to a little past its bait spot. The usual spots
-/// (A/B/C) are used unless a dive would cut through the middle or the first dive would run over the
-/// second spot, where that bait player is already out dropping hypernovas; then the three spots are
-/// chosen together, moving as few as possible (the "cursed" pattern). The third bait player stays in
-/// until the earlier dives land, so a dive covering the third spot only means they wait.
+/// A dive is a wide band from the dragon to a little past its bait spot. All three bait players are
+/// out on their spots before any dive lands, so the usual spots (A/B/C) are used unless a dive would
+/// cut through the middle or run over another bait player's spot (the "cursed" pattern). Cursed
+/// layouts follow cactbot's UCoB dragon mark rules; layouts those don't cover are searched instead.
 /// </summary>
 public static class DiveSolver
 {
@@ -32,8 +28,7 @@ public static class DiveSolver
     public const float MinClearance = 0.6f;
 
     // Half the width of a dive band, as a fraction of the arena radius. In game, NE/SE dragons diving
-    // onto A killed the dive 2 bait player on B, while an SW dragon diving onto B only covered C
-    // (fine, the third bait player waits).
+    // onto A killed the dive 2 bait player on B.
     public const float DefaultHalfWidth = 9f / 22f;
 
     // How far a dive band carries on past the bait spot, as a fraction of the arena radius. Treating
@@ -176,6 +171,19 @@ public static class DiveSolver
             Hits(groups[dive], candidates[dive][spot], candidates[later][laterSpot], dragonRadius, halfWidth + SearchMargin);
 
         var problems = Problems(groups, defaults, dragonRadius, halfWidth);
+        if (problems.Length > 0 && OctantMarks(order) is { } marks)
+        {
+            var markCalls = Enumerable.Range(0, 3)
+                .Select(i =>
+                {
+                    var angle = marks[i] * 45f;
+                    var waymark = AngularDistance(angle, defaults[i]) <= OnMarkerDegrees ? DiveWaymarks[i] : null;
+                    return new DiveCall(i + 1, groups[i], angle, waymark, Clearance(groups[i], angle, dragonRadius));
+                })
+                .ToArray();
+            return new DiveSolution(markCalls, problems);
+        }
+
         int[] best = [0, 0, 0];
         if (problems.Length > 0)
         {
@@ -192,7 +200,7 @@ public static class DiveSolver
                     }
                     for (var c = 0; c < n; c++)
                     {
-                        if (clearance[2][c] < MinClearance)
+                        if (clearance[2][c] < MinClearance || Clips(0, a, 2, c) || Clips(1, b, 2, c))
                         {
                             continue;
                         }
@@ -233,10 +241,56 @@ public static class DiveSolver
                 best[i] == 0 ? DiveWaymarks[i] : null,
                 clearance[i][best[i]]))
             .ToArray();
-        var thirdSpot = calls[2].BaitAngle;
-        var thirdWaits = Hits(groups[0], calls[0].BaitAngle, thirdSpot, dragonRadius, halfWidth)
-            || Hits(groups[1], calls[1].BaitAngle, thirdSpot, dragonRadius, halfWidth);
-        return new DiveSolution(calls, problems, thirdWaits);
+        return new DiveSolution(calls, problems);
+    }
+
+    /// <summary>
+    /// Bait spots (octants, 0 = N clockwise) for a cursed layout, following cactbot's UCoB
+    /// findDragonMarks rules. Returns null unless the dragons sit on five distinct octants.
+    /// </summary>
+    private static int[]? OctantMarks(float[] dragonAngles)
+    {
+        var octants = new List<int>();
+        foreach (var angle in dragonAngles)
+        {
+            var octant = (int)MathF.Round(Normalize(angle) / 45f) % 8;
+            if (AngularDistance(angle, octant * 45f) > 10f || octants.Contains(octant))
+            {
+                return null;
+            }
+            octants.Add(octant);
+        }
+        octants.Sort();
+        var (d0, d1, d2, d3, d4) = (octants[0], octants[1], octants[2], octants[3], octants[4]);
+
+        // Dive 1: counter-clockwise of the first dragon if the pair is adjacent, otherwise between them.
+        var mark1 = d0 + 1 == d1 ? (d0 + 7) % 8 : (d0 + d1) / 2;
+
+        // Dive 2: counter-clockwise of its dragon, unless that's next to the first pair.
+        var mark2 = d1 == d2 - 1 ? d2 + 1 : d2 - 1;
+
+        // Dive 3: clockwise of an adjacent pair (or just counter-clockwise of it when there's room),
+        // otherwise between the pair, leaning towards the last dragon.
+        int mark3;
+        if (d3 + 1 == d4)
+        {
+            mark3 = (d4 + 1) % 8;
+            var gap = mark2 == d2 - 1 ? 2 : 4;
+            if (d3 >= d2 + gap)
+            {
+                mark3 = d3 - 1;
+            }
+        }
+        else
+        {
+            mark3 = (d3 + d4 + 1) / 2;
+            if (mark2 == d3 && mark3 == mark2 + 1)
+            {
+                // e.g. N, NE, E, SE, SW: the E dragon would clip S, so send the last pair clockwise.
+                mark3 = (d4 + 1) % 8;
+            }
+        }
+        return [mark1, mark2, mark3];
     }
 
     /// <summary>What goes wrong when every dive is baited on its usual waymark.</summary>
@@ -250,9 +304,15 @@ public static class DiveSolver
                 problems.Add($"dive {i + 1} on {DiveWaymarks[i]} cuts through the middle");
             }
         }
-        if (Hits(groups[0], spots[0], spots[1], dragonRadius, halfWidth))
+        for (var i = 0; i < 3; i++)
         {
-            problems.Add($"dive 1 on {DiveWaymarks[0]} hits the dive 2 spot ({DiveWaymarks[1]})");
+            for (var j = i + 1; j < 3; j++)
+            {
+                if (Hits(groups[i], spots[i], spots[j], dragonRadius, halfWidth))
+                {
+                    problems.Add($"dive {i + 1} on {DiveWaymarks[i]} hits the dive {j + 1} spot ({DiveWaymarks[j]})");
+                }
+            }
         }
         return [.. problems];
     }
@@ -267,8 +327,7 @@ public static class DiveSolver
             var spot = call.Waymark is { } mark
                 ? $"{mark} ({PlainDirection(call.BaitAngle)})"
                 : SpotName(call.BaitAngle, markers);
-            var wait = call.Dive == 3 && solution.ThirdWaits ? " - wait for dives 1-2 to land before going out" : "";
-            yield return $"Dive {call.Dive}: {spot}{wait}";
+            yield return $"Dive {call.Dive}: {spot}";
         }
     }
 
